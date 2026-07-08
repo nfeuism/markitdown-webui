@@ -28,21 +28,61 @@ A modern web interface for Microsoft's MarkItDown document conversion tool.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/tomorrow56/markitdown-webui.git
+   git clone https://github.com/nfeuism/markitdown-webui.git
    cd markitdown-webui
    ```
 
-2. Install dependencies:
+2. Create a virtual environment and install dependencies **into it**:
+
+   **macOS / Linux:**
    ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
    pip install -r requirements.txt
    ```
 
-3. Run the application:
+   **Windows (PowerShell):**
+   ```powershell
+   py -m venv .venv
+   .venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   ```
+
+3. Run the application (inside the activated venv):
    ```bash
    python app.py
    ```
 
 4. Open your browser and navigate to `http://localhost:5001`
+
+> ### ⚠️ macOS: `zsh: command not found: pip` (and why `python app.py` fails too)
+>
+> On a modern Mac the bare `pip` and `python` commands **do not exist** — Apple
+> and Homebrew ship them as `pip3` / `python3`. So the classic
+> `pip install -r requirements.txt` gives:
+> ```
+> zsh: command not found: pip
+> ```
+> And even `pip3 install -r requirements.txt` usually fails with an
+> **`error: externally-managed-environment`** ([PEP 668](https://peps.python.org/pep-0668/)),
+> because Homebrew / python.org Python refuse to let you install packages into
+> the system Python.
+>
+> **Fix: always install into a virtual environment** (step 2 above). Once the
+> venv is activated, `pip` and `python` exist and point at the venv, so every
+> command in this README works verbatim — no `pip3`/`python3` juggling, no
+> PEP 668 error.
+>
+> **Faster alternative with [uv](https://github.com/astral-sh/uv):**
+> ```bash
+> uv venv --python 3.11 .venv
+> uv pip install --python .venv/bin/python -r requirements.txt   # uv-made venvs have no pip; use `uv pip`
+> .venv/bin/python app.py
+> ```
+>
+> **Or skip all of this on macOS** and let [`./install.sh`](#macos-run-as-a-background-service-auto-start-at-login)
+> build the venv, install everything, and run the app as a background service
+> for you (see the next section).
 
 ## macOS: Run as a Background Service (auto-start at login)
 
@@ -123,11 +163,29 @@ The application includes comprehensive error handling for:
 
 ## Troubleshooting
 
-### PDF Conversion Issues
-If you encounter PDF conversion errors:
-1. Ensure all dependencies are installed: `pip install -r requirements.txt`
-2. Try reinstalling MarkItDown: `pip uninstall markitdown -y && pip install 'markitdown[all]'`
-3. Check that pdfminer-six is properly installed
+### `command not found: pip` / `externally-managed-environment`
+You're not inside a virtual environment. See the **macOS pip note** in the
+[Installation](#installation) section — create and activate a `.venv` first,
+then `pip` works.
+
+### PDF / Office Conversion Issues
+If a conversion fails with a `MissingDependencyException` (e.g. for `.xlsx`,
+`.pptx`, `.docx`, or `.pdf`), the format's optional dependency isn't installed
+**in the venv the app runs from**. Reinstall the full dependency set into that
+venv:
+```bash
+source .venv/bin/activate          # make sure you're in the app's venv
+pip install --force-reinstall -r requirements.txt   # requirements pins markitdown[all]
+```
+Notes:
+- `requirements.txt` already requests `markitdown[all]`, which pulls in
+  `openpyxl` (xlsx), `python-pptx` (pptx), `mammoth` (docx), `pdfminer-six` /
+  `pdfplumber` (pdf), etc.
+- A **separate** `markitdown` CLI you may have installed elsewhere (e.g.
+  `uv tool install markitdown`) has its **own** environment — upgrading it does
+  **not** affect this web app's venv. Always install extras into `.venv`.
+- After installing new dependencies, **restart** the app (or `./restart.sh` if
+  running as the launchd service) so the new packages are loaded.
 
 ### Port Already in Use
 If port 5001 is already in use:
