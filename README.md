@@ -44,6 +44,39 @@ A modern web interface for Microsoft's MarkItDown document conversion tool.
 
 4. Open your browser and navigate to `http://localhost:5001`
 
+## macOS: Run as a Background Service (auto-start at login)
+
+On macOS you can run the Web UI as a managed **launchd** service so it starts
+automatically at login and restarts itself if it crashes — no need to launch it
+manually or keep a terminal open.
+
+```bash
+# From the repo folder — creates the .venv, installs deps, generates a
+# per-user LaunchAgent, and starts the service:
+./install.sh
+```
+
+That's it. The UI is now always available at `http://localhost:5001` and comes
+back on every reboot.
+
+### One-click control scripts
+
+| Command | What it does |
+|---------|--------------|
+| `./install.sh`  | Install/repair the service + auto-start (idempotent). |
+| `./start.sh`    | Start now. |
+| `./stop.sh`     | Stop now (still auto-starts again at next login). |
+| `./restart.sh`  | Restart the running server. |
+| `./status.sh`   | Show launchd state, port, and HTTP health. |
+| `./uninstall.sh`| Remove auto-start (deletes the LaunchAgent). Repo/venv untouched. |
+
+Details and internals are documented in [`CONTROL.md`](CONTROL.md).
+
+- Runs `serve.py` (production entry point: no Flask debug-reloader, binds
+  `127.0.0.1` only) instead of `app.py`.
+- Logs to `logs/webui.log`.
+- To change the port: `PORT=5055 ./install.sh`.
+
 ## Usage
 
 1. **Upload a file**: Drag and drop a file onto the upload area or click "Browse Files"
