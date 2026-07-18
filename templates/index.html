@@ -73,6 +73,7 @@
             </div>
             
             <div class="mt-4 text-sm text-gray-600">
+                <p class="mb-2">Maximum file size: {{ max_file_size_mb }} MB</p>
                 <p class="font-medium mb-2">Supported formats:</p>
                 <div class="flex flex-wrap gap-2">
                     <span class="px-2 py-1 bg-gray-100 rounded">PDF</span>
@@ -159,6 +160,8 @@
         const errorMessage = document.getElementById('errorMessage');
 
         let currentDownloadUrl = '';
+        const maxFileSizeBytes = {{ max_file_size_bytes }};
+        const maxFileSizeMB = {{ max_file_size_mb }};
 
         // File upload handlers
         dropZone.addEventListener('click', () => fileInput.click());
@@ -189,9 +192,8 @@
         });
 
         async function handleFile(file) {
-            // Validate file size (50MB max)
-            if (file.size > 50 * 1024 * 1024) {
-                showError('File size must be less than 50MB');
+            if (file.size > maxFileSizeBytes) {
+                showError(`File size must not exceed ${maxFileSizeMB} MB`);
                 return;
             }
 
@@ -207,15 +209,18 @@
                     body: formData
                 });
 
-                const result = await response.json();
+                const contentType = response.headers.get('content-type') || '';
+                const result = contentType.includes('application/json')
+                    ? await response.json()
+                    : { error: `Upload failed (HTTP ${response.status})` };
 
-                if (result.success) {
+                if (response.ok && result.success) {
                     showResult(result);
                 } else {
                     showError(result.error || 'Conversion failed');
                 }
             } catch (error) {
-                showError('Network error: ' + error.message);
+                showError(error.message || 'Network error');
             }
         }
 

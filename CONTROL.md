@@ -7,15 +7,17 @@ auto-restarts on crash. Everything is driven by scripts in this folder.
 ```bash
 ./install.sh          # creates .venv, installs deps, generates the LaunchAgent, starts it
 PORT=5055 ./install.sh   # use a custom port
+MAX_FILE_SIZE_MB=750 ./install.sh   # use a custom upload limit
 ```
 `install.sh` is idempotent — re-run it any time to repair or update the service.
 
 It generates a per-user agent:
 - **Label:** `com.<your-username>.markitdown-webui`
 - **Plist:** `~/Library/LaunchAgents/com.<your-username>.markitdown-webui.plist`
+- **Runtime copy:** `~/Library/Application Support/MarkItDownWebUI`
 - `RunAtLoad` (start at login) + `KeepAlive` (restart on crash)
-- Runs `serve.py` via the repo's `.venv` — single process, no Flask debug-reloader, binds `127.0.0.1` only
-- Logs: `logs/webui.log`
+- Runs `serve.py` via the runtime copy's `.venv` — single process, no Flask debug-reloader, binds `127.0.0.1` only
+- Logs: `~/Library/Application Support/MarkItDownWebUI/logs/webui.log`
 
 ## One-click control
 | Command | What it does |
@@ -29,9 +31,14 @@ It generates a per-user agent:
 
 ## Notes
 - Default URL: http://localhost:5001
+- Default maximum file size: 500 MB. Re-run `MAX_FILE_SIZE_MB=<n> ./install.sh` to change it.
+- One conversion runs at a time to protect the Mac from memory pressure.
+- Input and generated files older than one hour are removed when cleanup runs.
+- The first start can take tens of seconds while Python loads document converters.
 - Change the port: `PORT=<n> ./install.sh` (regenerates the plist), then it persists.
 - `stop.sh` won't disable login auto-start — use `uninstall.sh` for that.
 - The scripts derive their paths from this checkout, so the repo works from any
-  location and for any user.
+  location and for any user. `install.sh` syncs the source to Application Support
+  because macOS can block LaunchAgents from reading Desktop or Documents.
 - `app.py`'s built-in `python app.py` runner (debug mode, port 5001) still works
   for quick local dev; the service uses `serve.py` instead.

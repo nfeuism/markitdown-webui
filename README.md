@@ -112,9 +112,9 @@ back on every reboot.
 
 Details and internals are documented in [`CONTROL.md`](CONTROL.md).
 
-- Runs `serve.py` (production entry point: no Flask debug-reloader, binds
+- Runs `serve.py` (local service entry point: no Flask debug-reloader, binds
   `127.0.0.1` only) instead of `app.py`.
-- Logs to `logs/webui.log`.
+- Logs to `~/Library/Application Support/MarkItDownWebUI/logs/webui.log`.
 - To change the port: `PORT=5055 ./install.sh`.
 
 ## Usage
@@ -126,10 +126,34 @@ Details and internals are documented in [`CONTROL.md`](CONTROL.md).
 
 ## Configuration
 
-- **Maximum file size**: 50MB (configurable in `app.py`)
+- **Maximum file size**: 500 MB by default for local use (configure with `MAX_FILE_SIZE_MB`)
 - **Supported formats**: Defined in `ALLOWED_EXTENSIONS` in `app.py`
 - **Cleanup interval**: Files older than 1 hour are automatically deleted
 - **Port**: Application runs on port 5001
+
+### Mac mini local large-file setup
+
+The recommended large-file deployment is the included macOS LaunchAgent. It
+binds to `127.0.0.1`, so the UI is available only on the Mac at
+`http://localhost:5001` and is not exposed to the LAN or internet.
+
+```bash
+MAX_FILE_SIZE_MB=500 ./install.sh
+```
+
+The setting is persisted in the generated LaunchAgent plist. Re-run the same
+command with another positive integer to change the limit. The application
+accepts one conversion at a time to avoid exhausting memory, and files older
+than one hour are removed by the cleanup endpoint.
+
+The installer syncs a runtime copy to
+`~/Library/Application Support/MarkItDownWebUI`. This avoids macOS privacy
+restrictions that can prevent a LaunchAgent from reading a checkout under
+Desktop or Documents. Re-run `./install.sh` after pulling new source code.
+
+> The Vercel deployment remains subject to Vercel Functions' request-body
+> limit. Increasing `MAX_FILE_SIZE_MB` does not bypass the hosting platform's
+> limit; use the local LaunchAgent setup for large files.
 
 ## Requirements
 
