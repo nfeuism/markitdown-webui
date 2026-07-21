@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Permanently remove auto-start (deletes the launch agent) and stop the server.
-# The repo, .venv, and logs are left untouched.
+# The source checkout and Application Support runtime copy are left untouched.
 set -euo pipefail
 LABEL="com.$(id -un).markitdown-webui"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
