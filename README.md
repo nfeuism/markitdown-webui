@@ -16,6 +16,8 @@ A modern web interface for Microsoft's MarkItDown document conversion tool.
 - **Modern UI**: Clean, responsive interface built with Tailwind CSS
 - **Error Handling**: Comprehensive error reporting and validation
 - **File Management**: Automatic cleanup of temporary files
+- **Local Image OCR**: Convert screenshots and scanned images with Unlimited-OCR on Apple Silicon
+- **Offline Fallback**: Use Tesseract for fast, low-memory Chinese and English OCR
 
 ## Supported File Formats
 
@@ -23,6 +25,7 @@ A modern web interface for Microsoft's MarkItDown document conversion tool.
 - **Web**: HTML, HTM
 - **Data**: CSV, JSON, XML
 - **Text**: TXT, MD
+- **Images**: JPG, JPEG, PNG, WebP, BMP, TIFF (local OCR installation)
 
 ## Installation
 
@@ -99,6 +102,28 @@ manually or keep a terminal open.
 That's it. The UI is now always available at `http://localhost:5001` and comes
 back on every reboot.
 
+On Apple Silicon, the installer also adds `mlx-vlm` for the local
+`sahilchachra/unlimited-ocr-4bit-mlx` model. The model is downloaded lazily on
+the first image conversion (about 2.35 GB) and then reused from the local
+Hugging Face cache. No API key is required. The Web UI offers:
+
+- **Auto**: Unlimited-OCR first, then Tesseract if the model fails.
+- **Unlimited-OCR**: layout-aware local OCR using MLX Int4.
+- **Tesseract**: faster and lighter plain-text OCR.
+
+For the Tesseract fallback on macOS:
+
+```bash
+brew install tesseract
+# Add only the language data you need, such as chi_sim + built-in eng.
+```
+
+To skip MLX dependencies during a local installation:
+
+```bash
+INSTALL_LOCAL_OCR=0 ./install.sh
+```
+
 ### One-click control scripts
 
 | Command | What it does |
@@ -130,6 +155,8 @@ Details and internals are documented in [`CONTROL.md`](CONTROL.md).
 - **Supported formats**: Defined in `ALLOWED_EXTENSIONS` in `app.py`
 - **Cleanup interval**: Files older than 1 hour are automatically deleted
 - **Port**: Application runs on port 5001
+- **OCR model**: `MARKITDOWN_OCR_MODEL` (defaults to the MLX Int4 Unlimited-OCR model)
+- **OCR output limit**: `MARKITDOWN_OCR_MAX_TOKENS` (defaults to 4096)
 
 ### Mac mini local large-file setup
 
@@ -167,6 +194,7 @@ Desktop or Documents. Re-run `./install.sh` after pulling new source code.
 - `POST /convert`: Convert uploaded file to Markdown
 - `GET /download/<filename>`: Download converted file
 - `POST /cleanup`: Clean up old temporary files
+- `GET /api/ocr-capabilities`: Report local model and Tesseract availability
 
 ## Error Handling
 

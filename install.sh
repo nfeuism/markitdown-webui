@@ -16,7 +16,18 @@ PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 PORT="${PORT:-5001}"
 MAX_FILE_SIZE_MB="${MAX_FILE_SIZE_MB:-500}"
 CLEANUP_AGE_HOURS="${CLEANUP_AGE_HOURS:-1}"
+INSTALL_LOCAL_OCR="${INSTALL_LOCAL_OCR:-1}"
+MARKITDOWN_OCR_MODEL="${MARKITDOWN_OCR_MODEL:-sahilchachra/unlimited-ocr-4bit-mlx}"
+MARKITDOWN_OCR_MAX_TOKENS="${MARKITDOWN_OCR_MAX_TOKENS:-4096}"
+HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 PY="$DIR/.venv/bin/python"
+
+if command -v brew >/dev/null 2>&1; then
+    HOMEBREW_PREFIX="$(brew --prefix)"
+else
+    HOMEBREW_PREFIX="/opt/homebrew"
+fi
+SERVICE_PATH="$DIR/.venv/bin:$HOMEBREW_PREFIX/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 echo "==> Source: $SOURCE_DIR"
 echo "==> Runtime: $DIR"
@@ -40,7 +51,7 @@ fi
 if [ ! -x "$PY" ]; then
     echo "==> Creating .venv ..."
     if command -v uv >/dev/null 2>&1; then
-        uv venv --python 3.11 "$DIR/.venv"
+        uv venv --python 3.12 "$DIR/.venv"
     else
         python3 -m venv "$DIR/.venv"
     fi
@@ -52,6 +63,19 @@ if command -v uv >/dev/null 2>&1; then
 else
     "$PY" -m pip install -q --upgrade pip
     "$PY" -m pip install -q -r "$DIR/requirements.txt"
+fi
+if [ "$INSTALL_LOCAL_OCR" = "1" ] && [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+    echo "==> Installing Apple Silicon local OCR dependencies ..."
+    if command -v uv >/dev/null 2>&1; then
+        uv pip install --python "$PY" -q -r "$DIR/requirements-local-ocr.txt"
+    else
+        "$PY" -m pip install -q -r "$DIR/requirements-local-ocr.txt"
+    fi
+    if command -v tesseract >/dev/null 2>&1; then
+        echo "==> Tesseract fallback: ready"
+    else
+        echo "⚠️  Tesseract fallback not found; install with: brew install tesseract"
+    fi
 fi
 mkdir -p "$DIR/logs"
 
@@ -74,13 +98,19 @@ cat > "$PLIST" <<PLIST_EOF
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>${DIR}/.venv/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>${SERVICE_PATH}</string>
         <key>PORT</key>
         <string>${PORT}</string>
         <key>MAX_FILE_SIZE_MB</key>
         <string>${MAX_FILE_SIZE_MB}</string>
         <key>CLEANUP_AGE_HOURS</key>
         <string>${CLEANUP_AGE_HOURS}</string>
+        <key>MARKITDOWN_OCR_MODEL</key>
+        <string>${MARKITDOWN_OCR_MODEL}</string>
+        <key>MARKITDOWN_OCR_MAX_TOKENS</key>
+        <string>${MARKITDOWN_OCR_MAX_TOKENS}</string>
+        <key>HF_HOME</key>
+        <string>${HF_HOME}</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>

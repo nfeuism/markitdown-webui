@@ -7,6 +7,13 @@ import uuid
 from datetime import datetime
 from threading import Lock
 
+from local_ocr import (
+    IMAGE_EXTENSIONS,
+    LocalOcrImageConverter,
+    OCR_ENGINES,
+    get_ocr_capabilities,
+)
+
 # Check if running on Vercel
 is_vercel = os.environ.get('VERCEL') == '1'
 
@@ -48,7 +55,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {
     'pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls',
-    'html', 'htm', 'csv', 'json', 'xml', 'txt', 'md'
+    'html', 'htm', 'csv', 'json', 'xml', 'txt', 'md',
+    *IMAGE_EXTENSIONS,
 }
 
 def allowed_file(filename):
@@ -71,7 +79,14 @@ def get_file_type(filename):
         'json': 'application/json',
         'xml': 'application/xml',
         'txt': 'text/plain',
-        'md': 'text/markdown'
+        'md': 'text/markdown',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'webp': 'image/webp',
+        'bmp': 'image/bmp',
+        'tif': 'image/tiff',
+        'tiff': 'image/tiff',
     }
     return type_map.get(ext, 'application/octet-stream')
 
@@ -81,7 +96,13 @@ def index():
         'index.html',
         max_file_size_mb=MAX_FILE_SIZE_MB,
         max_file_size_bytes=MAX_FILE_SIZE_BYTES,
+        ocr_capabilities=get_ocr_capabilities(),
     )
+
+
+@app.route('/api/ocr-capabilities')
+def ocr_capabilities():
+    return jsonify(get_ocr_capabilities())
 
 
 @app.errorhandler(RequestEntityTooLarge)
@@ -109,6 +130,19 @@ def convert_file():
         
         if not allowed_file(file.filename):
             return jsonify({'error': 'File type not supported'}), 400
+
+        extension = file.filename.rsplit('.', 1)[1].lower()
+        is_image = extension in IMAGE_EXTENSIONS
+        ocr_engine = request.form.get('ocr_engine', 'auto').lower()
+        if ocr_engine not in OCR_ENGINES:
+            return jsonify({'error': 'Invalid OCR engine'}), 400
+        if is_image and not get_ocr_capabilities()['available']:
+            return jsonify({
+                'error': (
+                    'Local OCR is not installed on this server. On an Apple '
+                    'Silicon Mac, run ./install.sh to install MLX OCR support.'
+                )
+            }), 503
         
         # Generate unique filename
         filename = secure_filename(file.filename)
@@ -129,6 +163,10 @@ def convert_file():
             # Force import of PDF dependencies
             import pdfminer
             md = MarkItDown(enable_plugins=False)
+            ocr_converter = None
+            if is_image:
+                ocr_converter = LocalOcrImageConverter(engine=ocr_engine)
+                md.register_converter(ocr_converter, priority=-1.0)
             print(f"MarkItDown initialized successfully")
             
             # Check available converters
@@ -170,7 +208,8 @@ def convert_file():
                 'download_file', filename=output_filename, name=download_name
             ),
             'content_preview': result.text_content[:500] + '...' if len(result.text_content) > 500 else result.text_content,
-            'file_type': get_file_type(unique_filename)
+            'file_type': get_file_type(unique_filename),
+            'ocr_engine': ocr_converter.last_engine if ocr_converter else None,
         })
         
     except RequestEntityTooLarge:

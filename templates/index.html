@@ -47,7 +47,7 @@
                 </div>
                 <div class="flex items-center space-x-2 text-sm text-gray-600">
                     <i data-lucide="info" class="w-4 h-4"></i>
-                    <span>Convert documents to Markdown</span>
+                    <span>Convert documents and images to Markdown</span>
                 </div>
             </div>
         </div>
@@ -69,7 +69,35 @@
                 <button class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                     Browse Files
                 </button>
-                <input type="file" id="fileInput" class="hidden" accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.html,.htm,.csv,.json,.xml,.txt,.md">
+                <input type="file" id="fileInput" class="hidden" accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.html,.htm,.csv,.json,.xml,.txt,.md,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff">
+            </div>
+
+            <div class="mt-5 rounded-lg border border-blue-100 bg-blue-50 p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div class="flex items-center gap-2 font-medium text-gray-900">
+                            <i data-lucide="scan-text" class="h-4 w-4 text-blue-600"></i>
+                            Local image OCR
+                            {% if ocr_capabilities.available %}
+                            <span class="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Ready</span>
+                            {% else %}
+                            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Unavailable on this server</span>
+                            {% endif %}
+                        </div>
+                        <p class="mt-1 text-xs text-gray-600">
+                            Unlimited-OCR runs locally with MLX; Auto falls back to Tesseract when needed.
+                        </p>
+                    </div>
+                    <label class="text-sm text-gray-700">
+                        OCR engine
+                        <select id="ocrEngine" class="ml-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
+                            <option value="auto">Auto (recommended)</option>
+                            <option value="unlimited">Unlimited-OCR · MLX Int4</option>
+                            <option value="tesseract">Tesseract · fast</option>
+                        </select>
+                    </label>
+                </div>
+                <p id="ocrStatus" class="mt-2 text-xs text-gray-500"></p>
             </div>
             
             <div class="mt-4 text-sm text-gray-600">
@@ -83,6 +111,7 @@
                     <span class="px-2 py-1 bg-gray-100 rounded">HTML</span>
                     <span class="px-2 py-1 bg-gray-100 rounded">CSV/JSON/XML</span>
                     <span class="px-2 py-1 bg-gray-100 rounded">Text/MD</span>
+                    <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded">Images + OCR</span>
                 </div>
             </div>
         </section>
@@ -93,7 +122,7 @@
                 <div class="loading-spinner mr-4"></div>
                 <div>
                     <h3 class="text-lg font-semibold text-gray-900">Converting document...</h3>
-                    <p class="text-sm text-gray-600">Please wait while we process your file</p>
+                    <p id="loadingMessage" class="text-sm text-gray-600">Please wait while we process your file</p>
                 </div>
             </div>
         </section>
@@ -158,10 +187,27 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const fileInfo = document.getElementById('fileInfo');
         const errorMessage = document.getElementById('errorMessage');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const ocrEngine = document.getElementById('ocrEngine');
+        const ocrStatus = document.getElementById('ocrStatus');
 
         let currentDownloadUrl = '';
         const maxFileSizeBytes = {{ max_file_size_bytes }};
         const maxFileSizeMB = {{ max_file_size_mb }};
+        const ocrCapabilities = {{ ocr_capabilities | tojson }};
+        const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp', 'bmp', 'tif', 'tiff']);
+
+        const capabilityParts = [];
+        if (ocrCapabilities.unlimited_available) {
+            capabilityParts.push(`Unlimited-OCR${ocrCapabilities.model_cached ? ' cached' : ' downloads on first use'}`);
+        }
+        if (ocrCapabilities.tesseract_available) {
+            capabilityParts.push('Tesseract ready');
+        }
+        ocrStatus.textContent = capabilityParts.length
+            ? capabilityParts.join(' · ')
+            : 'Install local OCR dependencies to convert images.';
+        ocrEngine.disabled = !ocrCapabilities.available;
 
         // File upload handlers
         dropZone.addEventListener('click', () => fileInput.click());
@@ -197,11 +243,21 @@
                 return;
             }
 
+            const extension = file.name.includes('.')
+                ? file.name.split('.').pop().toLowerCase()
+                : '';
+            const isImage = imageExtensions.has(extension);
+            if (isImage && !ocrCapabilities.available) {
+                showError('Local OCR is unavailable on this server. Run ./install.sh on an Apple Silicon Mac.');
+                return;
+            }
+
             // Show loading
-            showLoading();
+            showLoading(isImage);
 
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('ocr_engine', ocrEngine.value);
 
             try {
                 const response = await fetch('/convert', {
@@ -224,10 +280,13 @@
             }
         }
 
-        function showLoading() {
+        function showLoading(isImage = false) {
             loadingSection.classList.remove('hidden');
             resultSection.classList.add('hidden');
             errorSection.classList.add('hidden');
+            loadingMessage.textContent = isImage
+                ? 'Running local OCR. The first Unlimited-OCR request may download the model.'
+                : 'Please wait while we process your file';
         }
 
         function showResult(result) {
@@ -235,7 +294,9 @@
             errorSection.classList.add('hidden');
             
             contentPreview.textContent = result.content_preview;
-            fileInfo.textContent = `File type: ${result.file_type}`;
+            fileInfo.textContent = result.ocr_engine
+                ? `File type: ${result.file_type} · OCR: ${result.ocr_engine}`
+                : `File type: ${result.file_type}`;
             currentDownloadUrl = result.download_url;
             
             downloadBtn.onclick = () => {

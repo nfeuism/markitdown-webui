@@ -18,6 +18,8 @@ Vercel Function 请求体大小的限制。
 - 同一时间只转换一个文档，降低大文件并发导致内存耗尽的风险。
 - 上传文件与转换结果超过一小时后可由清理接口删除。
 - 超限请求返回明确的 HTTP 413 和 JSON 错误信息。
+- Apple Silicon 上安装 MLX 版 Unlimited-OCR，支持图片直接转 Markdown。
+- Unlimited-OCR 不可用时可自动回退到本机 Tesseract。
 
 ## 安装
 
@@ -35,6 +37,22 @@ http://localhost:5001
 
 首次启动时 Python 需要加载文档转换依赖，可能需要几十秒；安装脚本会等待
 服务完成启动。
+
+第一次选择 Unlimited-OCR 转换图片时，会从 Hugging Face 下载约 2.35 GB
+的 Int4 模型。后续转换直接使用本机缓存，不需要 API Key，也不会上传图片。
+页面可以选择“自动”“Unlimited-OCR”或“Tesseract”三种 OCR 模式。
+
+建议安装中文和英文 Tesseract 兜底：
+
+```bash
+brew install tesseract
+```
+
+若不需要本地视觉模型，可执行：
+
+```bash
+INSTALL_LOCAL_OCR=0 ./install.sh
+```
 
 查看状态和日志：
 
